@@ -73,7 +73,7 @@ fn horizontal_rule() {
 #[test]
 fn multiple_horizontal_rules() {
     let result = nomark::convert("---\n\n---").unwrap();
-    assert_eq!(result, "___\n___");
+    assert_eq!(result, "___\n\n___");
 }
 
 #[test]
@@ -86,4 +86,18 @@ fn paragraph_separation() {
 fn heading_with_paragraph() {
     let result = nomark::convert("# Title\n\nContent here.").unwrap();
     assert_eq!(result, "* Title\n\nContent here.");
+}
+
+#[test]
+fn table_with_header() {
+    let result = nomark::convert("| H1 | H2 |\n|---|---|\n| A | B |").unwrap();
+    assert_eq!(result, "@table\n| H1 | H2 |\n| --- | --- |\n| A | B |\n@end");
+}
+
+#[test]
+fn table_inline_formatting_in_cell() {
+    let result = nomark::convert("| **bold** | `code` |\n|---|---|\n| x | y |").unwrap();
+    assert!(result.contains("@table"));
+    assert!(result.contains("*bold*"));
+    assert!(result.contains("`code`"));
 }

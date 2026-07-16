@@ -25,7 +25,7 @@ fn frontmatter_multiple_fields() {
 #[test]
 fn frontmatter_empty() {
     let result = nomark::convert("---\n---\n\n# Hello").unwrap();
-    assert_eq!(result, "___\n___\n* Hello");
+    assert_eq!(result, "___\n\n___\n\n* Hello");
 }
 
 #[test]

@@ -51,3 +51,21 @@ fn bold_with_braces_in_text() {
     let result = nomark::convert("**b** and {braces}").unwrap();
     assert_eq!(result, "*b* and \\{braces\\}");
 }
+
+#[test]
+fn block_html_wrapped_in_embed() {
+    let result = nomark::convert("<div>\ncontent\n</div>").unwrap();
+    assert!(result.contains("@embed html"));
+    assert!(result.contains("<div>"));
+    assert!(result.contains("</div>"));
+    assert!(result.contains("@end"));
+}
+
+#[test]
+fn details_summary_preserved() {
+    let result = nomark::convert("<details>\n<summary>label</summary>\ntext\n</details>").unwrap();
+    assert!(result.contains("@embed html"));
+    assert!(result.contains("<details>"));
+    assert!(result.contains("label"));
+    assert!(result.contains("text"));
+}

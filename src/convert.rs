@@ -12,9 +12,17 @@ pub(crate) struct Converter {
     footnote_name: String,
     footnote_content: String,
     in_image: bool,
+    image_url: String,
+    image_alt: String,
     in_link: bool,
     in_metadata: bool,
     metadata_content: String,
+    in_table: bool,
+    table_alignments: Vec<pulldown_cmark::Alignment>,
+    in_table_cell: bool,
+    table_cur_cell_text: String,
+    table_cur_row: Vec<String>,
+    table_rows: Vec<Vec<String>>,
 }
 
 impl Converter {
@@ -31,15 +39,25 @@ impl Converter {
             footnote_name: String::new(),
             footnote_content: String::new(),
             in_image: false,
+            image_url: String::new(),
+            image_alt: String::new(),
             in_link: false,
             in_metadata: false,
             metadata_content: String::new(),
+            in_table: false,
+            table_alignments: Vec::new(),
+            in_table_cell: false,
+            table_cur_cell_text: String::new(),
+            table_cur_row: Vec::new(),
+            table_rows: Vec::new(),
         }
     }
 
     fn buf(&mut self, s: &str) {
         if self.in_footnote {
             self.footnote_content.push_str(s);
+        } else if self.in_table_cell {
+            self.table_cur_cell_text.push_str(s);
         } else {
             self.output.push_str(s);
         }
@@ -48,6 +66,8 @@ impl Converter {
     fn buf_char(&mut self, c: char) {
         if self.in_footnote {
             self.footnote_content.push(c);
+        } else if self.in_table_cell {
+            self.table_cur_cell_text.push(c);
         } else {
             self.output.push(c);
         }
@@ -73,6 +93,8 @@ impl Converter {
                         self.code_block_content.push_str(&text);
                     } else if self.in_metadata {
                         self.metadata_content.push_str(&text);
+                    } else if self.in_image {
+                        self.image_alt.push_str(&text);
                     } else {
                         self.buf(&escape_text(&text));
                     }
@@ -82,7 +104,7 @@ impl Converter {
                     self.buf(&text);
                     self.buf_char('`');
                 }
-                Event::Rule => self.buf("___\n"),
+                Event::Rule => self.buf("___\n\n"),
                 Event::SoftBreak => self.buf_char(' '),
                 Event::HardBreak => self.buf_char('\n'),
                 Event::TaskListMarker(checked) => {
@@ -92,7 +114,18 @@ impl Converter {
                     self.buf_char('^');
                     self.buf(&name);
                 }
-                Event::Html(html) | Event::InlineHtml(html) => {
+                Event::Html(html) => {
+                    let trimmed = html.trim();
+                    if !trimmed.is_empty() {
+                        self.buf("@embed html\n");
+                        self.buf(trimmed);
+                        if !trimmed.ends_with('\n') {
+                            self.buf_char('\n');
+                        }
+                        self.buf("@end\n\n");
+                    }
+                }
+                Event::InlineHtml(html) => {
                     let text = strip_html(&html);
                     if !text.is_empty() {
                         self.buf(&text);
@@ -157,9 +190,8 @@ impl Converter {
             }
             Tag::Image { dest_url, .. } => {
                 self.in_image = true;
-                self.buf_char('{');
-                self.buf(dest_url.as_ref());
-                self.buf("}[");
+                self.image_url = dest_url.to_string();
+                self.image_alt.clear();
             }
             Tag::FootnoteDefinition(name) => {
                 self.in_footnote = true;
@@ -168,6 +200,18 @@ impl Converter {
             Tag::MetadataBlock(_) => {
                 self.in_metadata = true;
                 self.metadata_content.clear();
+            }
+            Tag::Table(alignments) => {
+                self.in_table = true;
+                self.table_alignments = alignments.clone();
+                self.table_rows.clear();
+            }
+            Tag::TableRow => {
+                self.table_cur_row.clear();
+            }
+            Tag::TableCell => {
+                self.in_table_cell = true;
+                self.table_cur_cell_text.clear();
             }
             _ => {}
         }
@@ -184,7 +228,7 @@ impl Converter {
                 self.buf(&lang);
                 self.buf_char('\n');
                 self.buf(&content);
-                self.buf("\n@end\n");
+                self.buf("\n@end\n\n");
             }
             TagEnd::BlockQuote(_) => {
                 self.blockquote_depth = self.blockquote_depth.saturating_sub(1);
@@ -203,7 +247,15 @@ impl Converter {
             }
             TagEnd::Image => {
                 self.in_image = false;
-                self.buf_char(']');
+                let url = std::mem::take(&mut self.image_url);
+                let alt = std::mem::take(&mut self.image_alt);
+                self.buf(".image ");
+                self.buf(&url);
+                if !alt.is_empty() {
+                    self.buf(" ");
+                    self.buf(&alt);
+                }
+                self.buf_char('\n');
             }
             TagEnd::List(_) => {
                 self.list_stack.pop();
@@ -224,7 +276,7 @@ impl Converter {
                 self.buf(&name);
                 self.buf_char('\n');
                 self.buf(trimmed);
-                self.buf("\n^^\n");
+                self.buf("\n^^\n\n");
             }
             TagEnd::MetadataBlock(_) => {
                 self.in_metadata = false;
@@ -240,6 +292,41 @@ impl Converter {
                 self.buf_char('\n');
                 self.buf_char('\n');
             }
+            TagEnd::TableHead => {
+                self.table_rows.push(std::mem::take(&mut self.table_cur_row));
+                let align = std::mem::take(&mut self.table_alignments);
+                let mut sep = Vec::new();
+                for a in &align {
+                    match a {
+                        pulldown_cmark::Alignment::None => sep.push("---".to_string()),
+                        pulldown_cmark::Alignment::Left => sep.push(":---".to_string()),
+                        pulldown_cmark::Alignment::Center => sep.push(":---:".to_string()),
+                        pulldown_cmark::Alignment::Right => sep.push("---:".to_string()),
+                    }
+                }
+                if !sep.is_empty() {
+                    self.table_rows.push(sep);
+                }
+            }
+            TagEnd::TableCell => {
+                self.in_table_cell = false;
+                let text = std::mem::take(&mut self.table_cur_cell_text);
+                self.table_cur_row.push(text.trim().to_string());
+            }
+            TagEnd::TableRow => {
+                self.table_rows.push(std::mem::take(&mut self.table_cur_row));
+            }
+            TagEnd::Table => {
+                self.in_table = false;
+                let rows = std::mem::take(&mut self.table_rows);
+                self.buf("@table\n");
+                for row in &rows {
+                    self.buf("| ");
+                    self.buf(&row.join(" | "));
+                    self.buf(" |\n");
+                }
+                self.buf("@end\n\n");
+            }
             _ => {}
         }
     }
@@ -248,7 +335,6 @@ impl Converter {
 fn strip_html(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut in_tag = false;
-    let mut is_img_alt = false;
     let mut tag_buf = String::new();
     for c in s.chars() {
         match c {
@@ -259,22 +345,10 @@ fn strip_html(s: &str) -> String {
             }
             '>' => {
                 in_tag = false;
-                if is_img_alt {
-                    if let Some(start) = tag_buf.find("alt=\"") {
-                        let val_start = start + 5;
-                        let rest = &tag_buf[val_start..];
-                        if let Some(end) = rest.find('"') {
-                            out.push_str(&rest[..end]);
-                        }
-                    }
-                }
-                is_img_alt = false;
+                tag_buf.clear();
             }
             _ if in_tag => {
                 tag_buf.push(c);
-                if tag_buf.starts_with("<img") || tag_buf.starts_with("<IMG") {
-                    is_img_alt = true;
-                }
             }
             _ => out.push(c),
         }

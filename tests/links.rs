@@ -13,7 +13,13 @@ fn link_with_bold() {
 #[test]
 fn image_simple() {
     let result = nomark::convert("![alt](img.png)").unwrap();
-    assert_eq!(result, "{img.png}[alt]");
+    assert_eq!(result, ".image img.png alt");
+}
+
+#[test]
+fn image_no_alt() {
+    let result = nomark::convert("![](img.png)").unwrap();
+    assert_eq!(result, ".image img.png");
 }
 
 #[test]
