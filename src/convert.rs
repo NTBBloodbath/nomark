@@ -182,11 +182,29 @@ impl Converter {
             Tag::Emphasis => self.buf_char('/'),
             Tag::Strong => self.buf_char('*'),
             Tag::Strikethrough => self.buf_char('-'),
-            Tag::Link { dest_url, .. } => {
+            Tag::Link { dest_url, link_type, .. } => {
                 self.in_link = true;
-                self.buf_char('{');
-                self.buf(dest_url.as_ref());
-                self.buf("}[");
+                match link_type {
+                    pulldown_cmark::LinkType::Autolink | pulldown_cmark::LinkType::Email => {
+                        self.buf_char('{');
+                        self.buf(dest_url.as_ref());
+                        self.buf("}[");
+                    }
+                    _ => {
+                        let url = dest_url.as_ref();
+                        if url.is_empty() {
+                            self.buf("{}[");
+                        } else if is_internal_path(url) {
+                            self.buf("{:");
+                            self.buf(url);
+                            self.buf(":}[");
+                        } else {
+                            self.buf_char('{');
+                            self.buf(url);
+                            self.buf("}[");
+                        }
+                    }
+                }
             }
             Tag::Image { dest_url, .. } => {
                 self.in_image = true;
@@ -372,6 +390,14 @@ fn escape_text(s: &str) -> String {
         }
     }
     out
+}
+
+fn is_internal_path(url: &str) -> bool {
+    !(url.contains("://")
+        || url.starts_with("mailto:")
+        || url.starts_with("tel:")
+        || url.starts_with("data:")
+        || url.starts_with("javascript:"))
 }
 
 fn yaml_to_norg(yaml: &str, buf: &mut String) {

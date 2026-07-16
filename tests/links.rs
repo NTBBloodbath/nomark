@@ -1,13 +1,25 @@
 #[test]
 fn link_simple() {
-    let result = nomark::convert("[text](url)").unwrap();
-    assert_eq!(result, "{url}[text]");
+    let result = nomark::convert("[text](https://example.com)").unwrap();
+    assert_eq!(result, "{https://example.com}[text]");
 }
 
 #[test]
 fn link_with_bold() {
-    let result = nomark::convert("[**bold**](url)").unwrap();
-    assert_eq!(result, "{url}[*bold*]");
+    let result = nomark::convert("[**bold**](https://example.com)").unwrap();
+    assert_eq!(result, "{https://example.com}[*bold*]");
+}
+
+#[test]
+fn internal_file_link() {
+    let result = nomark::convert("[text](/path/to/page)").unwrap();
+    assert_eq!(result, "{:/path/to/page:}[text]");
+}
+
+#[test]
+fn internal_link_relative() {
+    let result = nomark::convert("[text](../other)").unwrap();
+    assert_eq!(result, "{:../other:}[text]");
 }
 
 #[test]
