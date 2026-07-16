@@ -255,7 +255,9 @@ impl Converter {
                     self.buf(" ");
                     self.buf(&alt);
                 }
-                self.buf_char('\n');
+                if !self.in_link {
+                    self.buf_char('\n');
+                }
             }
             TagEnd::List(_) => {
                 self.list_stack.pop();
