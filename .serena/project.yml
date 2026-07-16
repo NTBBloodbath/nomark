@@ -1,0 +1,34 @@
+project_name: "nomark"
+
+languages:
+- rust
+
+encoding: "utf-8"
+
+ignore_all_files_in_gitignore: true
+
+ignored_paths:
+  - target/
+
+read_only: false
+
+initial_prompt: |
+  ## nomark — Project Overview
+
+  **Domain:** Escape away from Markdown, embrace Norg. A Rust-based tool for working with Norg markup format.
+  Licensed under GPL-2.0-only.
+
+  **Status:** Initial setup / Scratch.
+
+  ### Tech Stack
+  - **Language:** Rust (edition 2024)
+  - **Build:** Cargo via Nix flake (`flake.nix`)
+  - **Dev environment:** Nix flake with rust-analyzer, clippy, cargo-nextest
+
+  ### Build & Dev Commands
+  - `cargo build` — build the project
+  - `cargo test` / `cargo nextest run` — run tests
+  - `cargo clippy` — lint
+  - `cargo fmt` — format code
+  - `nix build` — build via Nix
+  - `nix develop` — enter dev shell
