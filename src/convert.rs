@@ -287,8 +287,9 @@ impl Converter {
                 self.buf("@document.meta");
                 self.buf_char('\n');
                 if !trimmed.is_empty() {
-                    self.buf(trimmed);
-                    self.buf_char('\n');
+                    let mut meta = String::new();
+                    yaml_to_norg(trimmed, &mut meta);
+                    self.buf(&meta);
                 }
                 self.buf("@end");
                 self.buf_char('\n');
@@ -371,6 +372,54 @@ fn escape_text(s: &str) -> String {
         }
     }
     out
+}
+
+fn yaml_to_norg(yaml: &str, buf: &mut String) {
+    if let Ok(value) = serde_yaml::from_str::<serde_yaml::Value>(yaml) {
+        if let serde_yaml::Value::Mapping(map) = value {
+            for (key, val) in &map {
+                let k = key.as_str().unwrap_or("");
+                buf.push_str(k);
+                buf.push_str(": ");
+                match val {
+                    serde_yaml::Value::Sequence(seq) => {
+                        buf.push_str("[\n");
+                        for item in seq {
+                            buf.push_str("  ");
+                            buf.push_str(&norg_value(item));
+                            buf.push('\n');
+                        }
+                        buf.push(']');
+                    }
+                    other => buf.push_str(&norg_value(other)),
+                }
+                buf.push('\n');
+            }
+            return;
+        }
+    }
+    buf.push_str(yaml);
+    buf.push('\n');
+}
+
+fn norg_value(v: &serde_yaml::Value) -> String {
+    match v {
+        serde_yaml::Value::String(s) => s.clone(),
+        serde_yaml::Value::Number(n) => n.to_string(),
+        serde_yaml::Value::Bool(b) => b.to_string(),
+        serde_yaml::Value::Null => "nil".into(),
+        serde_yaml::Value::Sequence(seq) => {
+            let mut out = String::from("[\n");
+            for item in seq {
+                out.push_str("  ");
+                out.push_str(&norg_value(item));
+                out.push('\n');
+            }
+            out.push(']');
+            out
+        }
+        other => serde_yaml::to_string(other).unwrap_or_default().trim().to_string(),
+    }
 }
 
 pub(crate) fn convert_markdown(input: &str) -> String {

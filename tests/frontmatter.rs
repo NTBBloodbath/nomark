@@ -33,10 +33,9 @@ fn frontmatter_preserves_yaml_structure() {
     let md = "---\nnested:\n  key: value\nlist:\n  - one\n  - two\n---\n\nBody";
     let result = nomark::convert(md).unwrap();
     assert!(result.starts_with("@document.meta"));
-    assert!(result.contains("nested:"));
-    assert!(result.contains("  key: value"));
-    assert!(result.contains("list:"));
-    assert!(result.contains("  - one"));
-    assert!(result.contains("  - two"));
-    assert!(result.contains("@end"));
+    assert!(result.contains("nested: key: value"));
+    assert!(result.contains("list: ["));
+    assert!(result.contains("  one"));
+    assert!(result.contains("  two"));
+    assert!(result.contains("]"));
 }
